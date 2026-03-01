@@ -1757,14 +1757,6 @@
     }
 
     const UPLOAD_FOLDER_MAP = { hook: 'hooks', capture: 'screenrecordings', musique: 'musics' };
-    let _cloudCfg = null;
-    async function getCloudinaryConfig() {
-      if (!_cloudCfg) {
-        const r = await fetch('/api/upload-config');
-        _cloudCfg = await r.json();
-      }
-      return _cloudCfg;
-    }
     function sanitizeFilename(name) {
       return name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').replace(/^[-_]+|[-_]+$/g, '') || `file_${Date.now()}`;
     }
@@ -1776,18 +1768,30 @@
       dropZone.innerHTML = '<span class="drop-zone-icon">...</span><div class="drop-zone-text">Upload en cours</div>';
 
       try {
-        const { cloudName, uploadPreset } = await getCloudinaryConfig();
         const folder = UPLOAD_FOLDER_MAP[type];
         if (!folder) throw new Error('Type invalide.');
 
         const resourceType = type === 'musique' ? 'auto' : 'video';
         const tag = tagInput ? tagInput.value.trim() : '';
+        const public_id = sanitizeFilename(file.name);
+
+        // Get signature from server (no file sent, just params)
+        const signBody = { folder, public_id };
+        if (tag) signBody.tags = tag;
+        const signRes = await fetch('/api/sign-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(signBody),
+        });
+        const { signature, timestamp, apiKey, cloudName } = await signRes.json();
 
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('upload_preset', uploadPreset);
+        formData.append('api_key', apiKey);
+        formData.append('timestamp', timestamp);
+        formData.append('signature', signature);
         formData.append('folder', folder);
-        formData.append('public_id', sanitizeFilename(file.name));
+        formData.append('public_id', public_id);
         if (tag) formData.append('tags', tag);
 
         const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
