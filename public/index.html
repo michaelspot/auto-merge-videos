@@ -559,6 +559,35 @@
       font-size: 13px;
     }
 
+    .tag-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .tag-suggestions:empty {
+      display: none;
+    }
+    .tag-suggestion {
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 20px;
+      color: #888;
+      font-size: 12px;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tag-suggestion:hover {
+      border-color: #555;
+      color: #fff;
+    }
+    .tag-suggestion.selected {
+      background: #fff;
+      color: #000;
+      border-color: #fff;
+    }
+
     .tag-input {
       width: 100%;
       padding: 8px 12px;
@@ -953,6 +982,7 @@
       <div id="pageImport" class="page">
         <div class="section">
           <div class="section-title">Importer un hook</div>
+          <div class="tag-suggestions" id="hookTagSuggestions"></div>
           <input type="text" class="tag-input" id="hookTagInput" placeholder="Tag (optionnel)">
           <div class="drop-zone" id="hookDropZone" data-type="hook">
             <span class="drop-zone-icon">+</span>
@@ -963,6 +993,7 @@
 
         <div class="section">
           <div class="section-title">Importer un screen recording</div>
+          <div class="tag-suggestions" id="captureTagSuggestions"></div>
           <input type="text" class="tag-input" id="captureTagInput" placeholder="Tag (optionnel)">
           <div class="drop-zone" id="captureDropZone" data-type="capture">
             <span class="drop-zone-icon">+</span>
@@ -973,6 +1004,7 @@
 
         <div class="section">
           <div class="section-title">Importer une musique</div>
+          <div class="tag-suggestions" id="musiqueTagSuggestions"></div>
           <input type="text" class="tag-input" id="musiqueTagInput" placeholder="Tag (optionnel)">
           <div class="drop-zone" id="musiqueDropZone" data-type="musique">
             <span class="drop-zone-icon">+</span>
@@ -983,6 +1015,7 @@
 
         <div class="section">
           <div class="section-title">Ajouter un texte</div>
+          <div class="tag-suggestions" id="texteTagSuggestions"></div>
           <input type="text" class="tag-input" id="texteTagInput" placeholder="Tag (optionnel)">
           <textarea class="texte-input" id="texteInput" placeholder="Saisir le texte..." rows="3"></textarea>
           <button class="btn btn-primary" style="margin-top:8px" onclick="addTexte()">Ajouter le texte</button>
@@ -1604,6 +1637,7 @@
         buildBulkTexte(document.getElementById('bulkTexteThumbs'), textes, bulkSelected.textes);
         updateTextPreview();
         updateBulkButton();
+        buildImportTagSuggestions();
         lucide.createIcons();
 
         // Show app immediately, don't wait for videos
@@ -1686,6 +1720,40 @@
         const file = e.target.files[0];
         if (file) await uploadFile(file, type);
       });
+    }
+
+    function buildImportTagSuggestions() {
+      const mapping = { hook: hooks, capture: captures, musique: musiques, texte: textes };
+      for (const [type, items] of Object.entries(mapping)) {
+        const container = document.getElementById(`${type}TagSuggestions`);
+        const input = document.getElementById(`${type}TagInput`);
+        if (!container || !input) continue;
+        const tagSet = new Set();
+        items.forEach(item => { if (item.tags) item.tags.forEach(t => tagSet.add(t)); });
+        const tags = [...tagSet].sort();
+        container.innerHTML = '';
+        for (const tag of tags) {
+          const el = document.createElement('span');
+          el.className = 'tag-suggestion';
+          el.textContent = tag;
+          el.addEventListener('click', () => {
+            if (el.classList.contains('selected')) {
+              el.classList.remove('selected');
+              input.value = '';
+            } else {
+              container.querySelectorAll('.tag-suggestion').forEach(s => s.classList.remove('selected'));
+              el.classList.add('selected');
+              input.value = tag;
+            }
+          });
+          container.appendChild(el);
+        }
+        input.addEventListener('input', () => {
+          container.querySelectorAll('.tag-suggestion').forEach(s => {
+            s.classList.toggle('selected', s.textContent === input.value.trim());
+          });
+        });
+      }
     }
 
     const UPLOAD_FOLDER_MAP = { hook: 'hooks', capture: 'screenrecordings', musique: 'musics' };
