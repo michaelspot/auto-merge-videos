@@ -1688,6 +1688,19 @@
       });
     }
 
+    const UPLOAD_FOLDER_MAP = { hook: 'hooks', capture: 'screenrecordings', musique: 'musics' };
+    let _cloudCfg = null;
+    async function getCloudinaryConfig() {
+      if (!_cloudCfg) {
+        const r = await fetch('/api/upload-config');
+        _cloudCfg = await r.json();
+      }
+      return _cloudCfg;
+    }
+    function sanitizeFilename(name) {
+      return name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').replace(/^[-_]+|[-_]+$/g, '') || `file_${Date.now()}`;
+    }
+
     async function uploadFile(file, type) {
       const dropZone = document.getElementById(`${type}DropZone`);
       const tagInput = document.getElementById(`${type}TagInput`);
@@ -1695,18 +1708,26 @@
       dropZone.innerHTML = '<span class="drop-zone-icon">...</span><div class="drop-zone-text">Upload en cours</div>';
 
       try {
+        const { cloudName, uploadPreset } = await getCloudinaryConfig();
+        const folder = UPLOAD_FOLDER_MAP[type];
+        if (!folder) throw new Error('Type invalide.');
+
+        const resourceType = type === 'musique' ? 'auto' : 'video';
+        const tag = tagInput ? tagInput.value.trim() : '';
+
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('type', type);
-        const tag = tagInput ? tagInput.value.trim() : '';
-        if (tag) formData.append('tag', tag);
+        formData.append('upload_preset', uploadPreset);
+        formData.append('folder', folder);
+        formData.append('public_id', sanitizeFilename(file.name));
+        if (tag) formData.append('tags', tag);
 
-        const res = await fetch('/api/upload', {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
           method: 'POST',
           body: formData,
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(data.error?.message || 'Erreur upload');
 
         await loadFiles();
         dropZone.innerHTML = originalText;
