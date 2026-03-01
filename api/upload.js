@@ -34,7 +34,10 @@ export default async function handler(req, res) {
     }
 
     const filename = file.originalFilename || 'file';
-    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/^[-_]+|[-_]+$/g, '')
+      || `file_${Date.now()}`;
 
     const uploadOptions = {
       folder,
