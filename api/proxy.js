@@ -1,4 +1,5 @@
 import https from "https";
+import { allowMethod, parseAllowedMediaUrl } from './_validation.js';
 
 export const config = {
   api: {
@@ -7,14 +8,16 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  if (!allowMethod(req, res, 'GET')) return;
+
   const { url } = req.query;
 
   if (!url) {
     return res.status(400).json({ error: "URL manquante" });
   }
 
-  // Vérifie que l'URL est bien de notre bucket R2
-  if (!url.startsWith("https://res.cloudinary.com/") && !url.startsWith("https://pub-f14155236ed54ea8847eb4db5d3c64c1.r2.dev/")) {
+  const source = parseAllowedMediaUrl(url);
+  if (!source) {
     return res.status(403).json({ error: "URL non autorisée" });
   }
 
@@ -22,7 +25,7 @@ export default async function handler(req, res) {
     const chunks = [];
 
     await new Promise((resolve, reject) => {
-      https.get(url, (response) => {
+      https.get(source, (response) => {
         if (response.statusCode !== 200) {
           reject(new Error(`Erreur serveur (code ${response.statusCode})`));
           return;

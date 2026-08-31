@@ -1,0 +1,22 @@
+.git
+.vercel
+.expo
+node_modules
+dist
+ios
+android
+*.ipa
+.DS_Store
+.env
+.env.local
+*.log
+
+# Backend et ancienne PWA, inutiles dans le binaire natif
+api
+public
+fonts
+static
+hooks.json
+TikTokSans-VariableFont_opsz,slnt,wdth,wght.ttf
+CLAUDE.md
+MONTAGE.md

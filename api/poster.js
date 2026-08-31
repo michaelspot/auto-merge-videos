@@ -1,6 +1,9 @@
 import cloudinary from './_cloudinary.js';
+import { allowMethod } from './_validation.js';
 
 export default async function handler(req, res) {
+  if (!allowMethod(req, res, 'GET')) return;
+
   const { publicId } = req.query;
 
   if (!publicId) return res.status(400).json({ error: "Paramètre manquant : publicId" });

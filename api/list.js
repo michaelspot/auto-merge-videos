@@ -1,5 +1,6 @@
 import cloudinary from './_cloudinary.js';
 import https from 'https';
+import { allowMethod } from './_validation.js';
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
@@ -30,6 +31,8 @@ async function searchFolder(folder) {
 }
 
 export default async function handler(req, res) {
+  if (!allowMethod(req, res, 'GET')) return;
+
   try {
     // Search API : 1 requête par dossier, filtrage resource_type côté code
     const [hooksAll, capturesAll, musicsAll, textsAll] = await Promise.all([

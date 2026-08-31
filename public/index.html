@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>Biblack</title>
+  <title>Scaylit</title>
 
   <!-- PWA Meta Tags -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Biblack">
+  <meta name="apple-mobile-web-app-title" content="Scaylit">
   <meta name="theme-color" content="#000000">
 
   <!-- PWA Icons -->
-  <link rel="apple-touch-icon" href="/icon.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="/icon.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
-  <link rel="apple-touch-icon" sizes="167x167" href="/icon.png">
-  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/scaylit-icon.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/scaylit-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/scaylit-icon.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/scaylit-icon.png">
+  <link rel="icon" type="image/png" href="/scaylit-icon.png">
   <link rel="manifest" href="/manifest.json">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://unpkg.com/jszip@3/dist/jszip.min.js"></script>
@@ -1973,11 +1973,11 @@
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             files: [file],
-            title: 'Biblack Video',
+            title: 'Scaylit Video',
           });
         } else if (navigator.share) {
           await navigator.share({
-            title: 'Biblack Video',
+            title: 'Scaylit Video',
             url: url
           });
         } else {
@@ -2183,18 +2183,18 @@
 
       // 3. Télécharger / Partager le ZIP
       if (isIOS && navigator.canShare) {
-        const file = new File([zipBlob], 'biblack-bulk.zip', { type: 'application/zip' });
+        const file = new File([zipBlob], 'scaylit-bulk.zip', { type: 'application/zip' });
         if (navigator.canShare({ files: [file] })) {
           try {
-            await navigator.share({ files: [file], title: 'Biblack Bulk' });
+            await navigator.share({ files: [file], title: 'Scaylit Bulk' });
           } catch (e) {
-            if (e.name !== 'AbortError') downloadBlob(zipBlob, 'biblack-bulk.zip');
+            if (e.name !== 'AbortError') downloadBlob(zipBlob, 'scaylit-bulk.zip');
           }
         } else {
-          downloadBlob(zipBlob, 'biblack-bulk.zip');
+          downloadBlob(zipBlob, 'scaylit-bulk.zip');
         }
       } else {
-        downloadBlob(zipBlob, 'biblack-bulk.zip');
+        downloadBlob(zipBlob, 'scaylit-bulk.zip');
       }
 
       status.classList.remove('visible');

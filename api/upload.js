@@ -1,5 +1,11 @@
 import cloudinary from './_cloudinary.js';
 import formidable from 'formidable';
+import {
+  allowMethod,
+  isValidUploadPublicId,
+  MAX_TAG_LENGTH,
+  normalizeOptionalTag,
+} from './_validation.js';
 
 export const config = {
   api: { bodyParser: false },
@@ -12,9 +18,7 @@ const FOLDER_MAP = {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Méthode non autorisée.' });
-  }
+  if (!allowMethod(req, res, 'POST')) return;
 
   try {
     const form = formidable({ maxFileSize: 100 * 1024 * 1024 });
@@ -22,7 +26,7 @@ export default async function handler(req, res) {
 
     const type = fields.type?.[0];
     const file = files.file?.[0];
-    const tag = fields.tag?.[0]?.trim();
+    const normalizedTag = normalizeOptionalTag(fields.tag?.[0]);
 
     if (!file || !type) {
       return res.status(400).json({ error: 'Fichier ou type manquant.' });
@@ -33,11 +37,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Type invalide.' });
     }
 
+    if (!normalizedTag.valid) {
+      return res.status(400).json({ error: `Le tag ne peut pas dépasser ${MAX_TAG_LENGTH} caractères.` });
+    }
+
     const filename = file.originalFilename || 'file';
     const nameWithoutExt = filename.replace(/\.[^/.]+$/, '')
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .replace(/^[-_]+|[-_]+$/g, '')
       || `file_${Date.now()}`;
+
+    if (!isValidUploadPublicId(nameWithoutExt)) {
+      return res.status(400).json({ error: 'Nom de fichier invalide ou trop long.' });
+    }
 
     const uploadOptions = {
       folder,
@@ -46,8 +58,8 @@ export default async function handler(req, res) {
       overwrite: true,
     };
 
-    if (tag) {
-      uploadOptions.tags = [tag];
+    if (normalizedTag.value) {
+      uploadOptions.tags = [normalizedTag.value];
     }
 
     const result = await cloudinary.uploader.upload(file.filepath, uploadOptions);

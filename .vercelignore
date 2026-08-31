@@ -1,0 +1,26 @@
+.git
+.expo
+node_modules
+dist
+ios
+android
+*.ipa
+.DS_Store
+.env
+.env.local
+*.log
+
+# Sources et ressources natives, inutiles au backend/PWA Vercel
+App.tsx
+index.ts
+src
+assets
+app.json
+eas.json
+expo-env.d.ts
+tsconfig.json
+static
+hooks.json
+TikTokSans-VariableFont_opsz,slnt,wdth,wght.ttf
+CLAUDE.md
+MONTAGE.md

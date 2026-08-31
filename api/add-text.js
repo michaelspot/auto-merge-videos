@@ -1,5 +1,12 @@
 import cloudinary from './_cloudinary.js';
 import https from 'https';
+import {
+  allowMethod,
+  MAX_TAG_LENGTH,
+  MAX_TEXT_LENGTH,
+  normalizeOptionalTag,
+  normalizeText,
+} from './_validation.js';
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
@@ -15,15 +22,19 @@ function fetchJson(url) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Méthode non autorisée.' });
-  }
+  if (!allowMethod(req, res, 'POST')) return;
 
   try {
-    const { text, tag } = req.body;
+    const { text, tag } = req.body || {};
+    const cleanText = normalizeText(text);
 
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: 'Texte manquant.' });
+    if (cleanText === null) {
+      return res.status(400).json({ error: `Le texte doit contenir entre 1 et ${MAX_TEXT_LENGTH} caractères.` });
+    }
+
+    const normalizedTag = normalizeOptionalTag(tag);
+    if (!normalizedTag.valid) {
+      return res.status(400).json({ error: `Le tag ne peut pas dépasser ${MAX_TAG_LENGTH} caractères.` });
     }
 
     // Récupérer le JSON existant
@@ -47,9 +58,9 @@ export default async function handler(req, res) {
     }
 
     // Ajouter le nouveau texte
-    const newEntry = { text: text.trim() };
-    if (tag && tag.trim()) {
-      newEntry.tag = tag.trim();
+    const newEntry = { text: cleanText };
+    if (normalizedTag.value) {
+      newEntry.tag = normalizedTag.value;
     }
     textes.push(newEntry);
 

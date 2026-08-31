@@ -5,6 +5,7 @@ import ffprobePath from "ffprobe-static";
 import fs from "fs";
 import https from "https";
 import path from "path";
+import { allowMethod, parseAllowedMediaUrl } from './_validation.js';
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath.path);
@@ -42,10 +43,18 @@ function probeVideo(filePath) {
 }
 
 export default async function handler(req, res) {
+  if (!allowMethod(req, res, 'GET')) return;
+
   const { hookUrl, captureUrl } = req.query;
 
   if (!hookUrl || !captureUrl) {
     return res.status(400).json({ error: "Il manque le hook ou la capture." });
+  }
+
+  const hookSource = parseAllowedMediaUrl(hookUrl);
+  const captureSource = parseAllowedMediaUrl(captureUrl);
+  if (!hookSource || !captureSource) {
+    return res.status(400).json({ error: "URL de hook ou de capture non autorisée." });
   }
 
   const timestamp = Date.now();
@@ -58,8 +67,8 @@ export default async function handler(req, res) {
   try {
     console.log("Téléchargement des fichiers...");
     await Promise.all([
-      downloadFile(hookUrl, hookPath),
-      downloadFile(captureUrl, capturePath),
+      downloadFile(hookSource, hookPath),
+      downloadFile(captureSource, capturePath),
     ]);
     console.log("Fichiers téléchargés");
 
@@ -71,10 +80,23 @@ export default async function handler(req, res) {
     const hookVideo = hookProbe.streams.find(s => s.codec_type === "video");
     const captureVideo = captureProbe.streams.find(s => s.codec_type === "video");
 
+    const matchingStreamProperties = [
+      "profile",
+      "level",
+      "pix_fmt",
+      "r_frame_rate",
+      "avg_frame_rate",
+      "time_base",
+      "sample_aspect_ratio",
+      "field_order",
+    ];
     const canFastConcat = hookVideo && captureVideo &&
       hookVideo.codec_name === "h264" && captureVideo.codec_name === "h264" &&
+      hookVideo.codec_tag_string === "avc1" && captureVideo.codec_tag_string === "avc1" &&
+      hookVideo.pix_fmt === "yuv420p" && captureVideo.pix_fmt === "yuv420p" &&
       hookVideo.width === 1080 && hookVideo.height === 1920 &&
-      captureVideo.width === 1080 && captureVideo.height === 1920;
+      captureVideo.width === 1080 && captureVideo.height === 1920 &&
+      matchingStreamProperties.every(property => hookVideo[property] === captureVideo[property]);
 
     if (canFastConcat) {
       console.log("Fast concat (pas de ré-encodage)");
@@ -84,7 +106,13 @@ export default async function handler(req, res) {
         ffmpeg()
           .input(concatListPath)
           .inputOptions(["-f", "concat", "-safe", "0"])
-          .outputOptions(["-c", "copy", "-movflags", "+faststart"])
+          .outputOptions([
+            "-map", "0:v:0",
+            "-c:v", "copy",
+            "-tag:v", "avc1",
+            "-movflags", "+faststart",
+            "-an",
+          ])
           .output(outputPath)
           .on("start", (cmd) => console.log("FFmpeg:", cmd))
           .on("end", resolve)
@@ -108,6 +136,7 @@ export default async function handler(req, res) {
             "-map", "[outv]",
             "-c:v", "libx264", "-preset", "ultrafast",
             "-crf", "23", "-movflags", "+faststart",
+            "-pix_fmt", "yuv420p", "-tag:v", "avc1",
             "-threads", "0", "-an"
           ])
           .output(outputPath)

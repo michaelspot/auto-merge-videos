@@ -1,20 +1,20 @@
 {
-  "name": "Biblack",
-  "short_name": "Biblack",
-  "description": "Fusionne hooks et captures automatiquement",
+  "name": "Scaylit",
+  "short_name": "Scaylit",
+  "description": "Crée et décline tes vidéos verticales à grande échelle",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "/icon.png",
+      "src": "/scaylit-icon.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon.png",
+      "src": "/scaylit-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

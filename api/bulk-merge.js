@@ -7,6 +7,12 @@ import fs from "fs";
 import https from "https";
 import path from "path";
 import TIKTOK_BASE64 from "./font-tiktok.js";
+import {
+  allowMethod,
+  MAX_TEXT_LENGTH,
+  normalizeText,
+  parseAllowedMediaUrl,
+} from './_validation.js';
 
 // Enregistrer la font TikTok Sans Medium au démarrage
 GlobalFonts.register(Buffer.from(TIKTOK_BASE64, 'base64'), 'TikTokSans');
@@ -124,17 +130,53 @@ function createTextOverlay(text, outputPath, positionPercent = 50) {
 }
 
 export default async function handler(req, res) {
+  if (!allowMethod(req, res, 'GET')) return;
+
   const { hookUrl, captureUrl, musiqueUrl, texte, textY } = req.query;
 
   if (!hookUrl || !captureUrl) {
     return res.status(400).json({ error: "Il manque le hook ou la capture." });
   }
 
+  const hookSource = parseAllowedMediaUrl(hookUrl);
+  const captureSource = parseAllowedMediaUrl(captureUrl);
+  if (!hookSource || !captureSource) {
+    return res.status(400).json({ error: "URL de hook ou de capture non autorisée." });
+  }
+
+  let musiqueSource = null;
+  if (musiqueUrl !== undefined && musiqueUrl !== '') {
+    // Les musiques historiques peuvent avoir été stockées comme ressources raw.
+    musiqueSource = parseAllowedMediaUrl(musiqueUrl, ['video', 'raw']);
+    if (!musiqueSource) {
+      return res.status(400).json({ error: "URL de musique non autorisée." });
+    }
+  }
+
+  let cleanText = '';
+  if (texte !== undefined && texte !== '') {
+    cleanText = normalizeText(texte);
+    if (cleanText === null) {
+      return res.status(400).json({ error: `Le texte doit contenir entre 1 et ${MAX_TEXT_LENGTH} caractères.` });
+    }
+  }
+
+  let safeTextY = 50;
+  if (textY !== undefined) {
+    if (typeof textY !== 'string' || textY.trim() === '') {
+      return res.status(400).json({ error: "Position du texte invalide." });
+    }
+    safeTextY = Number(textY);
+    if (!Number.isFinite(safeTextY) || safeTextY < 0 || safeTextY > 100) {
+      return res.status(400).json({ error: "La position du texte doit être comprise entre 0 et 100." });
+    }
+  }
+
   const timestamp = Date.now() + Math.random().toString(36).slice(2, 6);
   const hookPath = `/tmp/hook-${timestamp}.mp4`;
   const capturePath = `/tmp/capture-${timestamp}.mp4`;
-  const musiquePath = musiqueUrl ? `/tmp/musique-${timestamp}.mp3` : null;
-  const overlayPath = texte ? `/tmp/overlay-${timestamp}.png` : null;
+  const musiquePath = musiqueSource ? `/tmp/musique-${timestamp}.mp3` : null;
+  const overlayPath = cleanText ? `/tmp/overlay-${timestamp}.png` : null;
   const outputPath = `/tmp/output-${timestamp}.mp4`;
   const tempFiles = [hookPath, capturePath, outputPath];
   if (musiquePath) tempFiles.push(musiquePath);
@@ -143,14 +185,14 @@ export default async function handler(req, res) {
   try {
     // Télécharge les fichiers en parallèle + génère le text overlay
     const tasks = [
-      downloadFile(hookUrl, hookPath),
-      downloadFile(captureUrl, capturePath),
+      downloadFile(hookSource, hookPath),
+      downloadFile(captureSource, capturePath),
     ];
-    if (musiqueUrl) {
-      tasks.push(downloadFile(musiqueUrl, musiquePath));
+    if (musiqueSource) {
+      tasks.push(downloadFile(musiqueSource, musiquePath));
     }
-    if (texte) {
-      createTextOverlay(texte, overlayPath, textY);
+    if (cleanText) {
+      createTextOverlay(cleanText, overlayPath, safeTextY);
     }
     await Promise.all(tasks);
 
@@ -164,9 +206,9 @@ export default async function handler(req, res) {
     let finalVideoLabel = "concatv";
 
     // Overlay du texte en PNG transparent
-    if (texte) {
+    if (cleanText) {
       // L'index de l'input overlay dépend de si la musique est présente
-      const overlayIdx = musiqueUrl ? 3 : 2;
+      const overlayIdx = musiqueSource ? 3 : 2;
       filterParts.push(
         `[concatv][${overlayIdx}:v]overlay=0:0[outv]`
       );
@@ -178,6 +220,8 @@ export default async function handler(req, res) {
       "-c:v", "libx264",
       "-preset", "ultrafast",
       "-crf", "23",
+      "-pix_fmt", "yuv420p",
+      "-tag:v", "avc1",
       "-movflags", "+faststart",
       "-threads", "0",
     ];
@@ -185,7 +229,13 @@ export default async function handler(req, res) {
     // Audio : musique ou silence
     if (musiquePath) {
       const audioIdx = 2;
-      outputOptions.push("-map", `${audioIdx}:a`, "-c:a", "aac", "-b:a", "128k", "-shortest");
+      outputOptions.push(
+        "-map", `${audioIdx}:a`,
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-af", "apad",
+        "-shortest",
+      );
     } else {
       outputOptions.push("-an");
     }
