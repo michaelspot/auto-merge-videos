@@ -1,6 +1,6 @@
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -47,11 +47,14 @@ async function downloadKey(key, destination) {
 }
 
 async function uploadKey(key, source, contentType) {
+  const body = await readFile(source);
   const response = await fetch(internalR2Url(key), {
     method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: createReadStream(source),
-    duplex: 'half',
+    headers: {
+      'Content-Type': contentType,
+      'Content-Length': String(body.length),
+    },
+    body,
   });
   if (!response.ok) throw new Error(`Enregistrement R2 impossible (${response.status}).`);
 }
