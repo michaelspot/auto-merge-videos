@@ -1,4 +1,4 @@
-const FALLBACK_API_URL = 'https://auto-edit-tiktok.vercel.app';
+const FALLBACK_API_URL = 'https://scaylit.klopfensteincharly2.workers.dev';
 
 export const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL?.trim() || FALLBACK_API_URL

@@ -11,11 +11,10 @@ import type {
 } from './types';
 import { sanitizeFilename, safeOutputName } from './utils';
 
-interface CloudinarySignature {
-  signature: string;
-  timestamp: number;
-  apiKey: string;
-  cloudName: string;
+interface R2UploadSignature {
+  uploadUrl: string;
+  key: string;
+  headers: Record<string, string>;
 }
 
 interface ApiErrorBody {
@@ -95,39 +94,34 @@ export async function uploadMedia(asset: DocumentPickerAsset, type: MediaKind, t
       body: JSON.stringify({
         folder,
         public_id: publicId,
+        fileName: asset.name,
+        contentType: asset.mimeType || (type === 'musique' ? 'audio/mpeg' : 'video/mp4'),
         ...(tag ? { tags: tag } : {}),
       }),
     });
-    const signature = await parseResponse<CloudinarySignature>(signatureResponse);
-    const resourceType = type === 'musique' ? 'auto' : 'video';
-    const uploadUrl = `https://api.cloudinary.com/v1_1/${signature.cloudName}/${resourceType}/upload`;
-    const uploadResult = await file.upload(uploadUrl, {
-      fieldName: 'file',
-      httpMethod: 'POST',
-      ...(asset.mimeType ? { mimeType: asset.mimeType } : {}),
-      parameters: {
-        api_key: signature.apiKey,
-        timestamp: String(signature.timestamp),
-        signature: signature.signature,
-        folder,
-        public_id: publicId,
-        ...(tag ? { tags: tag } : {}),
-      },
+    const signature = await parseResponse<R2UploadSignature>(signatureResponse);
+    const uploadResult = await file.upload(signature.uploadUrl, {
+      httpMethod: 'PUT',
+      headers: signature.headers,
       sessionType: 'background',
-      uploadType: UploadType.MULTIPART,
+      uploadType: UploadType.BINARY_CONTENT,
     });
-    const uploadResponse = new Response(uploadResult.body, {
-      status: uploadResult.status,
-      headers: uploadResult.headers,
-    });
-    await parseResponse<{ secure_url: string }>(uploadResponse);
+    if (uploadResult.status < 200 || uploadResult.status >= 300) {
+      throw new Error(`Upload impossible (${uploadResult.status}).`);
+    }
+    if (type !== 'musique') {
+      const posterResponse = await fetch(
+        apiUrl(`/api/poster?publicId=${encodeURIComponent(signature.key)}`),
+      );
+      if (!posterResponse.ok) console.warn('Aperçu vidéo non généré', posterResponse.status);
+    }
   } finally {
     if (file.exists) file.delete();
   }
 }
 
-export async function generateSingle(hookUrl: string, captureUrl: string): Promise<string> {
-  const query = new URLSearchParams({ hookUrl, captureUrl });
+export async function generateSingle(hookKey: string, captureKey: string): Promise<string> {
+  const query = new URLSearchParams({ hookKey, captureKey });
   const response = await fetch(apiUrl(`/api/merge?${query.toString()}`));
   const data = await parseResponse<{ url: string }>(response);
   if (!data.url) throw new Error("La vidéo a été générée, mais son URL n'a pas été reçue.");
@@ -139,11 +133,11 @@ export async function generateBulkVideo(
   textY: number,
 ): Promise<GeneratedVideo> {
   const query = new URLSearchParams({
-    hookUrl: combination.hook.url,
-    captureUrl: combination.capture.url,
+    hookKey: combination.hook.public_id,
+    captureKey: combination.capture.public_id,
   });
 
-  if (combination.musique) query.set('musiqueUrl', combination.musique.url);
+  if (combination.musique) query.set('musiqueKey', combination.musique.public_id);
   if (combination.texte) {
     query.set('texte', combination.texte.text);
     query.set('textY', String(Math.round(textY)));

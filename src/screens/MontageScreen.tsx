@@ -92,7 +92,7 @@ export function MontageScreen({
     try {
       await activateKeepAwakeAsync(KEEP_AWAKE_TAG);
       setProgress((current) => (current ? { ...current, label: 'Assemblage en cours…', percent: 35 } : null));
-      const url = await generateSingle(selectedHook.url, selectedCapture.url);
+      const url = await generateSingle(selectedHook.public_id, selectedCapture.public_id);
       setProgress((current) => (current ? { ...current, label: 'Vidéo prête', percent: 100 } : null));
       setResult({ url, name: `${selectedHook.name} + ${selectedCapture.name}` });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

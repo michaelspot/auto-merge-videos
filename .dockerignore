@@ -1,0 +1,7 @@
+*
+!Dockerfile.cloudflare
+!cloudflare/
+!cloudflare/container/
+!cloudflare/container/**
+!api/
+!api/font-tiktok.js

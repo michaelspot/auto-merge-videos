@@ -1771,35 +1771,36 @@
         const folder = UPLOAD_FOLDER_MAP[type];
         if (!folder) throw new Error('Type invalide.');
 
-        const resourceType = type === 'musique' ? 'auto' : 'video';
         const tag = tagInput ? tagInput.value.trim() : '';
         const public_id = sanitizeFilename(file.name);
 
-        // Get signature from server (no file sent, just params)
-        const signBody = { folder, public_id };
+        // Get a short-lived R2 upload URL (the file never crosses the app server)
+        const signBody = {
+          folder,
+          public_id,
+          fileName: file.name,
+          contentType: file.type || (type === 'musique' ? 'audio/mpeg' : 'video/mp4'),
+        };
         if (tag) signBody.tags = tag;
         const signRes = await fetch('/api/sign-upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(signBody),
         });
-        const { signature, timestamp, apiKey, cloudName } = await signRes.json();
+        const signed = await signRes.json();
+        if (!signRes.ok) throw new Error(signed.error || 'Signature upload impossible');
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('api_key', apiKey);
-        formData.append('timestamp', timestamp);
-        formData.append('signature', signature);
-        formData.append('folder', folder);
-        formData.append('public_id', public_id);
-        if (tag) formData.append('tags', tag);
-
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
-          method: 'POST',
-          body: formData,
+        const res = await fetch(signed.uploadUrl, {
+          method: 'PUT',
+          headers: signed.headers,
+          body: file,
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'Erreur upload');
+        if (!res.ok) throw new Error(`Erreur upload (${res.status})`);
+
+        if (type !== 'musique') {
+          const posterRes = await fetch(`/api/poster?publicId=${encodeURIComponent(signed.key)}`);
+          if (!posterRes.ok) console.warn('Aperçu vidéo non généré', posterRes.status);
+        }
 
         await loadFiles();
         dropZone.innerHTML = originalText;
@@ -2034,7 +2035,7 @@
       startProgress();
 
       try {
-        const url = `/api/merge?hookUrl=${encodeURIComponent(hookItem.url)}&captureUrl=${encodeURIComponent(captureItem.url)}`;
+        const url = `/api/merge?hookKey=${encodeURIComponent(hookItem.public_id)}&captureKey=${encodeURIComponent(captureItem.public_id)}`;
         const res = await fetch(url);
         const data = await res.json();
 
@@ -2127,8 +2128,8 @@
         progressBar.style.width = `${(completed / combinations.length) * 90}%`;
 
         try {
-          let url = `/api/bulk-merge?hookUrl=${encodeURIComponent(combo.hook.url)}&captureUrl=${encodeURIComponent(combo.capture.url)}`;
-          if (combo.musique) url += `&musiqueUrl=${encodeURIComponent(combo.musique.url)}`;
+          let url = `/api/bulk-merge?hookKey=${encodeURIComponent(combo.hook.public_id)}&captureKey=${encodeURIComponent(combo.capture.public_id)}`;
+          if (combo.musique) url += `&musiqueKey=${encodeURIComponent(combo.musique.public_id)}`;
           if (combo.texte) {
             const texteStr = typeof combo.texte === 'string' ? combo.texte : (combo.texte.text || combo.texte.name || '');
             const textY = document.getElementById('textPositionSlider').value;
