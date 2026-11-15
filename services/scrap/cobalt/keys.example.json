@@ -1,0 +1,7 @@
+{
+  "REPLACE_WITH_A_UUID_V4": {
+    "name": "Scaylit Scrap",
+    "limit": 10,
+    "allowedServices": ["tiktok", "instagram"]
+  }
+}

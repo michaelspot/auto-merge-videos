@@ -4,16 +4,20 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
     "preview": {
-      "distribution": "internal"
+      "developmentClient": false,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://scaylit.klopfensteincharly2.workers.dev"
+      }
     },
     "production": {
+      "developmentClient": false,
       "autoIncrement": true,
       "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://scaylit.klopfensteincharly2.workers.dev"
+      },
       "ios": {
         "image": "sdk-57"
       }

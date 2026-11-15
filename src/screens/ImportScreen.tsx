@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -15,7 +15,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 
-import { addText, uploadMedia } from '../api';
+import { addText, uploadMedia, type UploadMediaAsset } from '../api';
+import { discardPickedMedia, pickLibraryMedia, pickLibraryMediaList } from '../mediaPicker';
 import { colors, radii, spacing } from '../theme';
 import type { MediaKind, MediaLibrary } from '../types';
 import { errorMessage, uniqueTags } from '../utils';
@@ -29,18 +30,27 @@ interface ImportScreenProps {
   onRefresh: () => Promise<void>;
   onBusyChange: (busy: boolean) => void;
   onNavigateMontage: () => void;
+  onNavigateHiggsfield: () => void;
   disabled: boolean;
 }
 
 type ImportBusy = MediaKind | 'texte' | null;
 
+const MAX_VIDEOS_PER_IMPORT = 10;
+
+function megabytes(bytes: number) {
+  return Math.max(0, Math.round(bytes / 1_000_000)).toLocaleString('fr-FR');
+}
+
 interface UploadBlockProps {
   title: string;
   description: string;
-  type: MediaKind;
+  pickerLabel: string;
+  pickerSubtitle: string;
   tags: string[];
   value: string;
   busy: boolean;
+  status?: string;
   disabled: boolean;
   onChange: (value: string) => void;
   onPick: () => void;
@@ -49,9 +59,12 @@ interface UploadBlockProps {
 function UploadBlock({
   title,
   description,
+  pickerLabel,
+  pickerSubtitle,
   tags,
   value,
   busy,
+  status,
   disabled,
   onChange,
   onPick,
@@ -84,22 +97,25 @@ function UploadBlock({
       />
       <Pressable
         accessibilityRole="button"
-        disabled={disabled}
+        accessibilityHint={busy ? 'Annule l’import en cours' : undefined}
+        disabled={disabled && !busy}
         onPress={onPick}
         style={({ pressed }) => [
           styles.picker,
-          disabled && styles.disabled,
-          pressed && !disabled && styles.pressed,
+          disabled && !busy && styles.disabled,
+          pressed && (!disabled || busy) && styles.pressed,
         ]}
       >
         <View style={styles.pickerIcon}>
           <Ionicons color={colors.accent} name={busy ? 'hourglass-outline' : 'add'} size={25} />
         </View>
         <View style={styles.pickerCopy}>
-          <Text style={styles.pickerTitle}>{busy ? 'Import en cours…' : 'Choisir un fichier'}</Text>
-          <Text style={styles.pickerSubtitle}>Tous les formats sont acceptés</Text>
+          <Text numberOfLines={1} style={styles.pickerTitle}>
+            {busy ? status || 'Import en cours…' : pickerLabel}
+          </Text>
+          <Text style={styles.pickerSubtitle}>{busy ? 'Touche pour annuler' : pickerSubtitle}</Text>
         </View>
-        <Ionicons color={colors.textFaint} name="chevron-forward" size={18} />
+        <Ionicons color={colors.textFaint} name={busy ? 'close' : 'chevron-forward'} size={18} />
       </Pressable>
     </View>
   );
@@ -111,46 +127,122 @@ export function ImportScreen({
   onRefresh,
   onBusyChange,
   onNavigateMontage,
+  onNavigateHiggsfield,
   disabled: externallyDisabled,
 }: ImportScreenProps) {
   const [tags, setTags] = useState<Record<MediaKind | 'texte', string>>({
     hook: '',
     capture: '',
     musique: '',
+    influ: '',
     texte: '',
   });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<ImportBusy>(null);
+  const [status, setStatus] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
 
   const setTag = (key: MediaKind | 'texte', value: string) => {
     setTags((current) => ({ ...current, [key]: value }));
   };
 
+  const pickAudioFile = async (): Promise<UploadMediaAsset | null> => {
+    const selection = await DocumentPicker.getDocumentAsync({
+      type: 'audio/*',
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (selection.canceled) return null;
+    return selection.assets[0] ?? null;
+  };
+
+  const confirmCancel = () => {
+    const controller = abortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    Alert.alert('Annuler l’import ?', 'Les fichiers déjà envoyés restent dans Scaylit.', [
+      { text: 'Continuer', style: 'cancel' },
+      { text: 'Annuler l’import', style: 'destructive', onPress: () => controller.abort() },
+    ]);
+  };
+
+  const pickAssets = async (type: MediaKind): Promise<UploadMediaAsset[]> => {
+    if (type === 'musique') {
+      const audio = await pickAudioFile();
+      return audio ? [audio] : [];
+    }
+    if (type === 'influ') {
+      const image = await pickLibraryMedia('image');
+      return image ? [image] : [];
+    }
+    return pickLibraryMediaList('video', MAX_VIDEOS_PER_IMPORT);
+  };
+
   const handlePick = async (type: MediaKind) => {
-    if (externallyDisabled || busy !== null) return;
+    if (busy !== null) {
+      if (busy === type) confirmCancel();
+      return;
+    }
+    if (externallyDisabled) return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setBusy(type);
+    setStatus('Préparation…');
+    onBusyChange(true);
+
+    let assets: UploadMediaAsset[] = [];
+    let uploaded = 0;
+    let failure: string | null = null;
     try {
-      const selection = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-      if (selection.canceled) return;
-      const asset = selection.assets[0];
-      if (!asset) return;
+      assets = await pickAssets(type);
+      const tag = tags[type].trim() || undefined;
 
-      setBusy(type);
-      onBusyChange(true);
-      await uploadMedia(asset, type, tags[type].trim() || undefined);
-      await onRefresh();
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTag(type, '');
-
-      if (type === 'hook' || type === 'capture') onNavigateMontage();
-      else Alert.alert('Import terminé', `${asset.name} est prêt dans Scaylit.`);
+      for (const [index, asset] of assets.entries()) {
+        if (controller.signal.aborted) break;
+        const prefix = assets.length > 1 ? `${index + 1}/${assets.length} · ` : '';
+        let lastPercent = -1;
+        setStatus(`${prefix}Envoi…`);
+        await uploadMedia(asset, type, tag, {
+          signal: controller.signal,
+          onProgress: (sent, total) => {
+            if (total <= 0) return;
+            const percent = Math.min(100, Math.floor((sent / total) * 100));
+            if (percent === lastPercent) return;
+            lastPercent = percent;
+            setStatus(`${prefix}Envoi ${percent} % · ${megabytes(sent)}/${megabytes(total)} Mo`);
+          },
+        });
+        uploaded += 1;
+      }
     } catch (error) {
-      Alert.alert('Import impossible', errorMessage(error));
+      if (!controller.signal.aborted) failure = errorMessage(error);
     } finally {
+      // uploadMedia supprime chaque copie envoyée ; on nettoie celles qui restent (erreur/annulation).
+      discardPickedMedia(assets.slice(uploaded));
+    }
+
+    try {
+      if (uploaded > 0) {
+        setStatus('Mise à jour de la médiathèque…');
+        await onRefresh();
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTag(type, '');
+      }
+
+      if (failure) {
+        Alert.alert(
+          'Import impossible',
+          uploaded > 0 ? `${uploaded}/${assets.length} fichier(s) importé(s). ${failure}` : failure,
+        );
+      } else if (uploaded > 0 && !controller.signal.aborted) {
+        if (type === 'hook' || type === 'capture') onNavigateMontage();
+        else if (type === 'influ') onNavigateHiggsfield();
+        else Alert.alert('Import terminé', `${assets[0]?.name ?? 'Le fichier'} est prêt dans Scaylit.`);
+      }
+    } finally {
+      abortRef.current = null;
       setBusy(null);
+      setStatus('');
       onBusyChange(false);
     }
   };
@@ -205,36 +297,55 @@ export function ImportScreen({
         showsVerticalScrollIndicator={false}
       >
         <UploadBlock
+          busy={busy === 'influ'}
+          status={status}
+          description="La personne de référence à utiliser dans tes vidéos Higgsfield."
+          disabled={disabled}
+          onChange={(value) => setTag('influ', value)}
+          onPick={() => void handlePick('influ')}
+          pickerLabel="Choisir une photo"
+          pickerSubtitle="Retrouve tes images dans le carrousel Influ"
+          tags={uniqueTags(library.influs)}
+          title="Importer une influ"
+          value={tags.influ}
+        />
+        <UploadBlock
           busy={busy === 'hook'}
+          status={status}
           description="La première séquence qui arrête le scroll."
           disabled={disabled}
           onChange={(value) => setTag('hook', value)}
           onPick={() => void handlePick('hook')}
+          pickerLabel="Choisir dans Photos"
+          pickerSubtitle="Une ou plusieurs vidéos de la photothèque"
           tags={uniqueTags(library.hooks)}
           title="Importer un hook"
-          type="hook"
           value={tags.hook}
         />
         <UploadBlock
           busy={busy === 'capture'}
+          status={status}
           description="La démonstration ou capture qui suit le hook."
           disabled={disabled}
           onChange={(value) => setTag('capture', value)}
           onPick={() => void handlePick('capture')}
+          pickerLabel="Choisir dans Photos"
+          pickerSubtitle="Une ou plusieurs vidéos de la photothèque"
           tags={uniqueTags(library.captures)}
           title="Importer un screen recording"
-          type="capture"
           value={tags.capture}
         />
         <UploadBlock
           busy={busy === 'musique'}
+          status={status}
           description="Une bande-son choisie aléatoirement dans les lots."
           disabled={disabled}
           onChange={(value) => setTag('musique', value)}
           onPick={() => void handlePick('musique')}
+          pickerLabel="Choisir un fichier audio"
+          pickerSubtitle="Fichiers audio uniquement"
           tags={uniqueTags(library.musiques)}
           title="Importer une musique"
-          type="musique"
           value={tags.musique}
         />
 

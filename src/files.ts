@@ -1,4 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
+import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { NO_COMPRESSION, zip } from 'react-native-zip-archive';
 
@@ -27,6 +28,23 @@ export async function shareVideo(url: string, name: string) {
       mimeType: 'video/mp4',
       UTI: 'public.mpeg-4',
     });
+  } finally {
+    if (destination.exists) destination.delete();
+  }
+}
+
+export async function saveVideoToPhotos(url: string, name: string) {
+  const permission = await requestPermissionsAsync(true, ['video']);
+  if (!permission.granted) {
+    throw new Error(
+      'Autorise Scaylit à ajouter des vidéos à Photos dans les réglages de ton iPhone.',
+    );
+  }
+
+  const destination = cacheFile(`${safeOutputName(name)}-${Date.now()}.mp4`);
+  try {
+    const file = await File.downloadFileAsync(url, destination, { idempotent: true });
+    await Asset.create(file.uri);
   } finally {
     if (destination.exists) destination.delete();
   }

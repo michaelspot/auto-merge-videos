@@ -1,6 +1,11 @@
-export type MediaKind = 'hook' | 'capture' | 'musique';
+export type MediaKind = 'hook' | 'capture' | 'musique' | 'influ';
 export type LibraryKey = 'hooks' | 'captures' | 'musiques' | 'textes';
-export type AppTab = 'montage' | 'import' | 'bulk';
+export type AppTab = 'montage' | 'higgsfield' | 'import' | 'scrap' | 'settings';
+
+export interface ClipTrim {
+  start: number;
+  end: number;
+}
 
 export interface MediaItem {
   name: string;
@@ -11,6 +16,7 @@ export interface MediaItem {
   public_id: string;
   tags: string[];
   resource_type?: string;
+  trim?: ClipTrim;
 }
 
 export interface TextItem {
@@ -22,6 +28,7 @@ export interface MediaLibrary {
   hooks: MediaItem[];
   captures: MediaItem[];
   musiques: MediaItem[];
+  influs: MediaItem[];
   textes: TextItem[];
 }
 
@@ -49,5 +56,6 @@ export const EMPTY_LIBRARY: MediaLibrary = {
   hooks: [],
   captures: [],
   musiques: [],
+  influs: [],
   textes: [],
 };

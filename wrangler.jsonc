@@ -4,6 +4,9 @@
   "main": "cloudflare/worker.ts",
   "compatibility_date": "2026-08-28",
   "compatibility_flags": ["nodejs_compat"],
+  "ratelimits": [
+    { "name": "SCRAP_RATE_LIMIT", "namespace_id": "1001", "simple": { "limit": 3, "period": 60 } }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

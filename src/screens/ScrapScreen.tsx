@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -7,21 +7,25 @@ import { ResultCard } from '../components/ResultCard';
 import { ScrapProgress } from '../components/ScrapProgress';
 import { useScrapJob } from '../hooks/useScrapJob';
 import { normalizeScrapUrl } from '../scrap';
+import { downloadScrapForHiggsfield } from '../scrapTransfer';
+import type { PickedVideo } from '../mediaPicker';
 import { colors, radii, spacing } from '../theme';
 import { errorMessage } from '../utils';
 
 interface ScrapScreenProps {
   active: boolean;
-  disabled: boolean;
-  onBusyChange: (busy: boolean) => void;
+  onSendToHiggsfield: (video: PickedVideo) => void;
 }
 
-export function ScrapScreen({ active, disabled, onBusyChange }: ScrapScreenProps) {
+export function ScrapScreen({ active, onSendToHiggsfield }: ScrapScreenProps) {
   const [url, setUrl] = useState('');
   const [removeText, setRemoveText] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const sendingRef = useRef(false);
   const { job, sourceUrl, ready, pending, connectionError, start, stop } = useScrapJob(active);
-  const locked = disabled || pending || !ready;
+  const locked = pending || !ready || sending;
 
   useEffect(() => { if (sourceUrl) setUrl(sourceUrl); }, [sourceUrl]);
   const jobRemoveText = job?.removeText;
@@ -34,8 +38,25 @@ export function ScrapScreen({ active, disabled, onBusyChange }: ScrapScreenProps
       start(normalized, removeText);
       setUrl(normalized);
       setInputError(null);
+      setTransferError(null);
       Keyboard.dismiss();
     } catch (error) { setInputError(errorMessage(error)); }
+  };
+
+  const sendToHiggsfield = async () => {
+    if (locked || sendingRef.current || !job) return;
+    sendingRef.current = true;
+    setSending(true);
+    setTransferError(null);
+    try {
+      const video = await downloadScrapForHiggsfield(job);
+      onSendToHiggsfield(video);
+    } catch (error) {
+      setTransferError(errorMessage(error, 'Transfert impossible. Réessaie.'));
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
   };
 
   return (
@@ -94,7 +115,11 @@ export function ScrapScreen({ active, disabled, onBusyChange }: ScrapScreenProps
         {job?.status === 'completed' && job.url && job.name ? (
           <View style={styles.result}>
             <Text style={styles.help}>{job.note || (job.removeText ? 'Texte supprimé · son conservé' : 'Vidéo téléchargée · texte conservé')}</Text>
-            <ResultCard active={active} onBusyChange={onBusyChange} result={{ url: job.url, name: job.name }} />
+            <ResultCard active={active} disabled={sending} result={{ url: job.url, name: job.name }} />
+            <PrimaryButton disabled={locked} loading={sending} icon="sparkles-outline"
+              label={sending ? 'Transfert vers Higgsfield…' : 'Envoyer vers Higgsfield'}
+              onPress={() => void sendToHiggsfield()} />
+            {transferError ? <Text accessibilityRole="alert" style={styles.error}>{transferError}</Text> : null}
             <Text style={styles.expiry}>Disponible pendant 24 h. Enregistre-la dans Photos pour la garder.</Text>
           </View>
         ) : null}

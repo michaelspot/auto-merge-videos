@@ -20,3 +20,15 @@ hooks.json
 TikTokSans-VariableFont_opsz,slnt,wdth,wght.ttf
 CLAUDE.md
 MONTAGE.md
+
+# Backend Cloudflare, service Scrap, tests et caches d’outils
+cloudflare
+services
+tests
+Dockerfile.cloudflare
+wrangler.jsonc
+vercel.json
+.vercelignore
+.dockerignore
+.wrangler
+.claude

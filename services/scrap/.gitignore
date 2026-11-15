@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+cobalt/keys.json
+cobalt/cookies.json

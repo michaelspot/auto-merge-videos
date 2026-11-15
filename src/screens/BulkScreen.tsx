@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -164,19 +164,28 @@ export function BulkScreen({
   const maximum = chosenHooks.length * chosenCaptures.length;
   const generating = progress !== null;
 
-  const updateSelection = (key: LibraryKey, updater: (current: Set<string>) => Set<string>) => {
-    if (disabled) return;
-    setSelected((current) => ({ ...current, [key]: updater(current[key]) }));
-  };
+  const updateSelection = useCallback(
+    (key: LibraryKey, updater: (current: Set<string>) => Set<string>) => {
+      if (disabled) return;
+      setSelected((current) => ({ ...current, [key]: updater(current[key]) }));
+    },
+    [disabled],
+  );
 
-  const toggleSelection = (key: LibraryKey, id: string) => {
-    updateSelection(key, (current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const toggleSelection = useCallback(
+    (key: LibraryKey, id: string) => {
+      updateSelection(key, (current) => {
+        const next = new Set(current);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [updateSelection],
+  );
+  // Stable per-list handlers keep the memoized MediaSelector from re-rendering on every change.
+  const toggleHook = useCallback((id: string) => toggleSelection('hooks', id), [toggleSelection]);
+  const toggleCapture = useCallback((id: string) => toggleSelection('captures', id), [toggleSelection]);
 
   const toggleTag = (key: LibraryKey, tag: string) => {
     if (disabled) return;
@@ -202,7 +211,7 @@ export function BulkScreen({
     });
   };
 
-  const handleDelete = (item: MediaItem) => {
+  const handleDelete = useCallback((item: MediaItem) => {
     if (disabled) return;
     Alert.alert('Supprimer ce fichier ?', item.name, [
       { text: 'Annuler', style: 'cancel' },
@@ -221,7 +230,7 @@ export function BulkScreen({
         },
       },
     ]);
-  };
+  }, [disabled, onBusyChange, onRefresh]);
 
   const showCountModal = () => {
     if (disabled || generating) return;
@@ -387,7 +396,7 @@ export function BulkScreen({
             items={filteredHooks}
             onChangeIndex={setHookIndex}
             onDelete={handleDelete}
-            onToggleSelection={(id) => toggleSelection('hooks', id)}
+            onToggleSelection={toggleHook}
             selectedIds={selected.hooks}
           />
         </View>
@@ -431,7 +440,7 @@ export function BulkScreen({
             items={filteredCaptures}
             onChangeIndex={setCaptureIndex}
             onDelete={handleDelete}
-            onToggleSelection={(id) => toggleSelection('captures', id)}
+            onToggleSelection={toggleCapture}
             selectedIds={selected.captures}
           />
         </View>

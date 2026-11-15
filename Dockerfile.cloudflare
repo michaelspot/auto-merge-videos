@@ -10,6 +10,7 @@ COPY cloudflare/container/package.json ./package.json
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY cloudflare/container/server.mjs ./server.mjs
+COPY cloudflare/container/clip-trim.mjs ./clip-trim.mjs
 COPY api/font-tiktok.js ./font-tiktok.js
 
 ENV NODE_ENV=production

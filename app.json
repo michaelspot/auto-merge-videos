@@ -10,7 +10,9 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#050505",
     "ios": {
-      "bundleIdentifier": "com.lycha.scaylit",
+      "bundleIdentifier": "app.scaylit.kofy",
+      "appleTeamId": "57T8L49V7G",
+      "buildNumber": "8",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -46,7 +48,11 @@
       },
       "infoPlist": {
         "CFBundleDisplayName": "Scaylit",
-        "LSSupportsOpeningDocumentsInPlace": true
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": false
+        }
       }
     },
     "android": {
@@ -83,6 +89,24 @@
       ],
       "expo-font",
       "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Scaylit accède à vos photos et vidéos pour importer vos références et créer vos vidéos.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Scaylit accède à vos vidéos pour les importer et les assembler.",
+          "savePhotosPermission": "Scaylit enregistre les vidéos générées dans votre photothèque.",
+          "granularPermissions": [
+            "video"
+          ]
+        }
+      ],
       "expo-sharing",
       [
         "expo-video",
@@ -91,7 +115,20 @@
           "supportsPictureInPicture": false
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true,
+            "buildReactNativeFromSource": true,
+            "usePrecompiledModules": false
+          }
+        }
+      ],
+      "./plugins/withProductionIosScheme",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

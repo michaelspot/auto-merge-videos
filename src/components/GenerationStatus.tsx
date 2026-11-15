@@ -1,25 +1,36 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { colors, radii, spacing } from '../theme';
 import type { GenerationProgress } from '../types';
 
 export function GenerationStatus({ progress }: { progress: GenerationProgress }) {
   const width = `${Math.max(0, Math.min(100, progress.percent))}%` as `${number}%`;
+  const complete = progress.percent >= 100;
+  const estimatedSingleProgress = progress.total === 1 && !complete;
   return (
     <View
       accessibilityLabel={progress.label}
       accessibilityRole="progressbar"
-      accessibilityValue={{
-        min: 0,
-        max: 100,
-        now: Math.round(Math.max(0, Math.min(100, progress.percent))),
-        text: `${progress.current} sur ${progress.total}`,
-      }}
+      accessibilityValue={
+        estimatedSingleProgress
+          ? { text: `${progress.label}, en cours` }
+          : {
+              min: 0,
+              max: 100,
+              now: Math.round(Math.max(0, Math.min(100, progress.percent))),
+              text: `${progress.current} sur ${progress.total}`,
+            }
+      }
       style={styles.card}
     >
       <View style={styles.header}>
         <View style={styles.statusCopy}>
-          <ActivityIndicator color={colors.accent} size="small" />
+          {complete ? (
+            <Ionicons color={colors.success} name="checkmark-circle" size={18} />
+          ) : (
+            <ActivityIndicator color={colors.accent} size="small" />
+          )}
           <Text numberOfLines={1} style={styles.label}>
             {progress.label}
           </Text>

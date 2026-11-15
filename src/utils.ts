@@ -6,6 +6,8 @@ export function errorMessage(error: unknown, fallback = 'Une erreur est survenue
 
 export function sanitizeFilename(name: string) {
   const sanitized = name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/\.[^/.]+$/, '')
     .replace(/[^a-zA-Z0-9_-]/g, '_')
     .replace(/^[-_]+|[-_]+$/g, '')

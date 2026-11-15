@@ -1,25 +1,39 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Haptics from 'expo-haptics';
 
-import { shareVideo } from '../files';
+import { saveVideoToPhotos } from '../files';
 import { colors, radii, spacing } from '../theme';
 import type { GeneratedVideo } from '../types';
 import { errorMessage } from '../utils';
 import { VideoPreview } from './VideoPreview';
 
-export function ResultCard({ result, active }: { result: GeneratedVideo; active: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const [sharing, setSharing] = useState(false);
+interface ResultCardProps {
+  result: GeneratedVideo;
+  active: boolean;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+}
 
-  const handleShare = async () => {
-    setSharing(true);
+export function ResultCard({ result, active, disabled = false, onBusyChange }: ResultCardProps) {
+  const window = useWindowDimensions();
+  const [saving, setSaving] = useState(false);
+  const previewHeight = Math.min((window.width - spacing.lg * 2) * (16 / 9), window.height * 0.54);
+
+  const handleSave = async () => {
+    if (disabled || saving) return;
+    setSaving(true);
+    onBusyChange?.(true);
     try {
-      await shareVideo(result.url, result.name);
+      await saveVideoToPhotos(result.url, result.name);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Vidéo sauvegardée', 'La vidéo est maintenant dans ta photothèque.');
     } catch (error) {
-      Alert.alert('Partage impossible', errorMessage(error));
+      Alert.alert('Sauvegarde impossible', errorMessage(error));
     } finally {
-      setSharing(false);
+      setSaving(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -30,36 +44,28 @@ export function ResultCard({ result, active }: { result: GeneratedVideo; active:
           <Ionicons color={colors.success} name="checkmark-circle" size={17} />
           <Text style={styles.badgeText}>Vidéo prête</Text>
         </View>
-        <Text numberOfLines={2} style={styles.name}>
-          {result.name}
-        </Text>
       </View>
-      {expanded ? (
-        <View style={styles.preview}>
+      <View style={styles.previewShell}>
+        <View style={[styles.preview, { height: previewHeight }]}>
           <VideoPreview active={active} controls url={result.url} />
         </View>
-      ) : null}
+      </View>
       <View style={styles.actions}>
         <Pressable
-          accessibilityLabel={expanded ? 'Réduire l’aperçu' : 'Afficher l’aperçu'}
+          accessibilityLabel="Sauvegarder la vidéo dans Photos"
           accessibilityRole="button"
-          accessibilityState={{ expanded }}
-          onPress={() => setExpanded((value) => !value)}
-          style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+          accessibilityState={{ disabled: disabled || saving, busy: saving }}
+          disabled={disabled || saving}
+          onPress={() => void handleSave()}
+          style={({ pressed }) => [
+            styles.action,
+            styles.primaryAction,
+            (disabled || saving) && styles.disabled,
+            pressed && !disabled && !saving && styles.pressed,
+          ]}
         >
-          <Ionicons color={colors.text} name={expanded ? 'chevron-up' : 'play-outline'} size={17} />
-          <Text style={styles.actionText}>{expanded ? 'Réduire' : 'Aperçu'}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Enregistrer ou partager la vidéo"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: sharing, busy: sharing }}
-          disabled={sharing}
-          onPress={() => void handleShare()}
-          style={({ pressed }) => [styles.action, styles.primaryAction, pressed && styles.pressed]}
-        >
-          <Ionicons color={colors.accentInk} name="share-outline" size={17} />
-          <Text style={styles.primaryText}>{sharing ? 'Préparation…' : 'Enregistrer'}</Text>
+          <Ionicons color={colors.accentInk} name="download-outline" size={18} />
+          <Text style={styles.primaryText}>{saving ? 'Sauvegarde…' : 'Sauvegarder'}</Text>
         </Pressable>
       </View>
     </View>
@@ -89,17 +95,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  name: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 19,
-    marginTop: spacing.sm,
+  previewShell: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: colors.background,
   },
   preview: {
-    width: '100%',
+    maxWidth: '100%',
     aspectRatio: 9 / 16,
-    maxHeight: 520,
     backgroundColor: colors.background,
   },
   actions: {
@@ -110,8 +113,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   action: {
-    flex: 1,
-    height: 42,
+    width: '100%',
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -125,17 +128,15 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.accent,
   },
-  actionText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   primaryText: {
     color: colors.accentInk,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '800',
   },
   pressed: {
     opacity: 0.72,
+  },
+  disabled: {
+    opacity: 0.45,
   },
 });
