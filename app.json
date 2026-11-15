@@ -12,7 +12,7 @@
     "ios": {
       "bundleIdentifier": "app.scaylit.kofy",
       "appleTeamId": "57T8L49V7G",
-      "buildNumber": "8",
+      "buildNumber": "9",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
